@@ -28,13 +28,14 @@
                 <div class="setting-row">
                     <label for="provider-select">Provider</label>
                     <select id="provider-select">
-                        <option value="anthropic" selected>Anthropic (Claude Sonnet)</option>
+                        <option value="auto" selected>Auto (uses server default)</option>
                         <option value="openai">OpenAI (GPT-4o)</option>
+                        <option value="anthropic">Anthropic (Claude Sonnet)</option>
                     </select>
                 </div>
                 <div class="setting-row">
-                    <label for="api-key-input">API Key <span class="optional">(optional — uses saved key if blank)</span></label>
-                    <input type="password" id="api-key-input" placeholder="Leave blank to use default">
+                    <label for="api-key-input">API Key <span class="optional">(optional — uses server key if blank)</span></label>
+                    <input type="password" id="api-key-input" placeholder="Leave blank to use server default">
                 </div>
             </div>
         </div>
@@ -66,8 +67,8 @@
                             <input type="text" id="subject-address" placeholder="e.g., 6530 Wentworth Springs Rd">
                         </div>
                         <div class="address-row">
-                            <label for="adjoining-addresses">Adjoining Property Addresses <span class="optional">(one per line)</span></label>
-                            <textarea id="adjoining-addresses" rows="3" placeholder="e.g., 6510 Wentworth Springs Rd&#10;6540 Wentworth Springs Rd"></textarea>
+                            <label for="adjoining-addresses">Adjoining Property Addresses with Direction <span class="optional">(one per line: address = direction)</span></label>
+                            <textarea id="adjoining-addresses" rows="4" placeholder="e.g., 6510 Wentworth Springs Rd = north&#10;6540 Wentworth Springs Rd = east&#10;6620 Wentworth Springs Rd = south"></textarea>
                         </div>
                     </div>
 

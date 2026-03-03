@@ -1,0 +1,7 @@
+fastapi>=0.100.0
+uvicorn>=0.20.0
+python-multipart>=0.0.6
+pdf2image>=1.16.0
+Pillow>=10.0.0
+anthropic>=0.30.0
+openai>=1.30.0

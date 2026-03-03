@@ -87,23 +87,50 @@ class OpenAIProvider(LLMProvider):
         return response.choices[0].message.content
 
 
-def get_provider(provider_name: str = "anthropic", api_key: str | None = None) -> LLMProvider:
-    """Factory to get the configured LLM provider."""
+def get_provider(provider_name: str = "auto", api_key: str | None = None) -> LLMProvider:
+    """Factory to get the configured LLM provider.
+    
+    Priority for API keys:
+    1. Explicitly passed api_key
+    2. Environment variable (OPENAI_API_KEY or ANTHROPIC_API_KEY)
+    3. Server-side .env file
+    4. OpenClaw auth-profiles (dev only)
+    
+    Default provider is 'auto' — tries OpenAI first (enterprise), falls back to Anthropic.
+    """
+    if provider_name == "auto":
+        # Try OpenAI first (enterprise subscription), fall back to Anthropic
+        if api_key or os.environ.get("OPENAI_API_KEY"):
+            provider_name = "openai"
+        elif os.environ.get("ANTHROPIC_API_KEY") or _has_anthropic_auth():
+            provider_name = "anthropic"
+        else:
+            # Default to OpenAI — enterprise deployments set OPENAI_API_KEY
+            provider_name = "openai"
+    
     if provider_name == "anthropic":
-        key = api_key or _load_anthropic_key()
+        key = api_key or os.environ.get("ANTHROPIC_API_KEY") or _load_anthropic_key()
         return AnthropicProvider(api_key=key)
     elif provider_name == "openai":
         key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        if not key:
+            raise RuntimeError(
+                "No OpenAI API key found. Set OPENAI_API_KEY environment variable "
+                "or pass an API key in Settings."
+            )
         return OpenAIProvider(api_key=key)
     else:
         raise ValueError(f"Unknown provider: {provider_name}")
 
 
+def _has_anthropic_auth() -> bool:
+    """Check if Anthropic auth is available (without loading)."""
+    auth_path = os.path.expanduser("~/.clawdbot/agents/main/agent/auth-profiles.json")
+    return os.path.exists(auth_path)
+
+
 def _load_anthropic_key() -> str:
-    """Load Anthropic API key from auth-profiles.json or environment."""
-    env_key = os.environ.get("ANTHROPIC_API_KEY")
-    if env_key:
-        return env_key
+    """Load Anthropic API key from auth-profiles.json (dev/personal use)."""
     auth_path = os.path.expanduser("~/.clawdbot/agents/main/agent/auth-profiles.json")
     try:
         with open(auth_path) as f:

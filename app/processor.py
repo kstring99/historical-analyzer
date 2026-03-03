@@ -83,9 +83,13 @@ Analyze THREE zones and provide observations for each:
    
    Regular buildings, parking lots, residential structures, commercial buildings, and normal development are NOT concerns. A machine shop or auto repair facility looks like any commercial building from the air — do NOT flag it as a concern unless you see specific visual evidence (staining, tanks, drums, etc.)
    
+   IMPORTANT: Be careful interpreting ambiguous circular or rounded features. Baseball diamonds, athletic tracks, roundabouts, and water towers can look like tanks or industrial features in low-resolution imagery. If a feature could be recreational (baseball diamond, playground) OR industrial (tank, drum), lean toward the benign interpretation unless there is clear industrial context (pipes, staining, industrial buildings nearby).
+   
    If "Yes", state EXACTLY what you see (e.g., "Yes — fuel canopy and paved forecourt consistent with gasoline service station visible at adjoining property to the south").
 
 Extract the YEAR from the footer bar.
+
+CONSISTENCY: Use consistent terminology across years. If undeveloped land stays undeveloped, describe it the same way each time so years can be grouped. Only change your description when the land use ACTUALLY changes (e.g., new structure built, land cleared, new development). Focus on WHAT CHANGED from one era to the next, not minor phrasing differences.
 
 Format your response EXACTLY as:
 YEAR: [year from footer]
@@ -157,7 +161,7 @@ For EACH year that has data, create entries for three zones:
 
 1. SUBJECT PROPERTY — listings at the subject property address. If no listing exists for a year, note "No listing identified for the subject property address."
 
-2. ADJOINING PROPERTIES — listings at adjoining property addresses. If no listings, note "No listings identified for adjoining property addresses."
+2. ADJOINING PROPERTIES — listings at adjoining property addresses. Include the DIRECTIONAL REFERENCE if provided (e.g., "The adjoining property to the north at 6510 Wentworth Springs Rd was listed as..."). If no listings, note "No listings identified for adjoining property addresses."
 
 3. SURROUNDING — any other listings in the area that could be environmentally relevant.
 
@@ -270,19 +274,49 @@ def _group_year_ranges(pages: list[PageResult], zone: str) -> list[TableRow]:
 
 
 def _observations_similar(obs1: str, obs2: str) -> bool:
-    """Check if two observations are similar enough to group."""
+    """Check if two observations are similar enough to group.
+    
+    Aggressive grouping — ESA tables should minimize repetition.
+    If the land use hasn't fundamentally changed, group the years.
+    """
     if not obs1 or not obs2:
         return False
     
-    # Extract key phrases
-    words1 = set(re.findall(r'\b\w{4,}\b', obs1.lower()))
-    words2 = set(re.findall(r'\b\w{4,}\b', obs2.lower()))
+    # Normalize
+    obs1_clean = obs1.lower().strip()
+    obs2_clean = obs2.lower().strip()
+    
+    # Extract key land-use words (the things that actually matter for ESA)
+    land_use_keywords = {
+        'undeveloped', 'residential', 'commercial', 'industrial', 'agricultural',
+        'vacant', 'wooded', 'forested', 'cleared', 'graded', 'paved',
+        'parking', 'structure', 'building', 'school', 'church', 'store',
+        'tanks', 'staining', 'fuel', 'canopy', 'drums', 'equipment',
+        'baseball', 'athletic', 'recreation', 'playground'
+    }
+    
+    # Check if key land-use terms match
+    terms1 = set(w for w in re.findall(r'\b\w+\b', obs1_clean) if w in land_use_keywords)
+    terms2 = set(w for w in re.findall(r'\b\w+\b', obs2_clean) if w in land_use_keywords)
+    
+    if terms1 and terms2:
+        # If land-use keywords are the same, it's the same observation
+        if terms1 == terms2:
+            return True
+        # High overlap in key terms = same
+        overlap = len(terms1 & terms2) / max(len(terms1), len(terms2))
+        if overlap >= 0.7:
+            return True
+    
+    # Fallback: general word overlap with lower threshold
+    words1 = set(re.findall(r'\b\w{4,}\b', obs1_clean))
+    words2 = set(re.findall(r'\b\w{4,}\b', obs2_clean))
     
     if not words1 or not words2:
         return False
     
     overlap = len(words1 & words2) / max(len(words1), len(words2))
-    return overlap > 0.6  # 60% word overlap = similar enough to group
+    return overlap > 0.45  # More aggressive grouping (was 0.6)
 
 
 # --- Page analysis ---
@@ -483,8 +517,8 @@ Write a professional ESA summary paragraph that:
 2. Summarizes the general development history of the subject property and surrounding area.
 
 3. CROSS-REFERENCES findings between document types:
-   - If a city directory lists an environmentally concerning use (e.g., gasoline service station) AND the aerial photograph shows visual evidence (fuel canopy, tanks), note that BOTH sources corroborate the concern.
-   - If a city directory lists a concerning use (e.g., machine shop, auto repair) but the aerial photograph shows a normal-looking commercial building with no visible environmental indicators, note that the concern was identified in the city directory only.
+   - If a city directory lists an environmentally concerning use (e.g., gasoline service station) AND the aerial photograph shows visual evidence (fuel canopy, tanks) in the SAME DIRECTION/LOCATION, note that BOTH sources corroborate the concern and specify the direction (e.g., "A gasoline service station was identified at the adjoining property to the south in city directory listings from 1985-1995, which is corroborated by aerial photographs from the same period showing a fuel canopy structure at the adjoining property to the south.").
+   - If a city directory lists a concerning use (e.g., machine shop, auto repair) but the aerial photograph shows a normal-looking commercial building with no visible environmental indicators, note that the concern was identified in the city directory only (e.g., "City directory listings from 1990-2000 identify a machine shop at the adjoining property to the east. Aerial photographs from this period depict a commercial structure at this location but do not show visible environmental indicators.").
    - If an aerial photograph shows visual environmental evidence (tanks, staining) but no city directory listing explains it, note that the concern was identified in aerial photographs only.
 
 4. Clearly state whether any environmental concerns were identified, and if so, specify:
