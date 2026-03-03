@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historical Documentation Analyzer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">📄</div>
+                    <div>
+                        <h1>Historical Documentation Analyzer</h1>
+                        <p class="subtitle">Phase I ESA — Aerial Photos · Topo Maps · City Directories</p>
+                    </div>
+                </div>
+                <button class="settings-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
+            </div>
+        </header>
+
+        <!-- Settings Panel -->
+        <div id="settings-panel" class="settings-panel hidden">
+            <div class="settings-content">
+                <h3>LLM Provider Settings</h3>
+                <div class="setting-row">
+                    <label for="provider-select">Provider</label>
+                    <select id="provider-select">
+                        <option value="anthropic" selected>Anthropic (Claude Sonnet)</option>
+                        <option value="openai">OpenAI (GPT-4o)</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label for="api-key-input">API Key <span class="optional">(optional — uses saved key if blank)</span></label>
+                    <input type="password" id="api-key-input" placeholder="Leave blank to use default">
+                </div>
+            </div>
+        </div>
+
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section id="upload-section" class="upload-section">
+                <div class="upload-zone" id="upload-zone">
+                    <div class="upload-icon">📁</div>
+                    <h2>Upload ERIS PDF Packages</h2>
+                    <p>Drag and drop aerial photos, topographic maps, or city directories</p>
+                    <p class="upload-hint">Supports: Aerial, Topo, and City Directory PDFs</p>
+                    <input type="file" id="file-input" multiple accept=".pdf" hidden>
+                    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                        Select Files
+                    </button>
+                </div>
+
+                <!-- File List -->
+                <div id="file-list" class="file-list hidden">
+                    <div id="file-items"></div>
+                    
+                    <!-- Address inputs for city directory -->
+                    <div id="address-section" class="address-section hidden">
+                        <h3>City Directory Address Matching</h3>
+                        <p class="address-hint">Provide addresses to match directory listings to Subject and Adjoining properties.</p>
+                        <div class="address-row">
+                            <label for="subject-address">Subject Property Address</label>
+                            <input type="text" id="subject-address" placeholder="e.g., 6530 Wentworth Springs Rd">
+                        </div>
+                        <div class="address-row">
+                            <label for="adjoining-addresses">Adjoining Property Addresses <span class="optional">(one per line)</span></label>
+                            <textarea id="adjoining-addresses" rows="3" placeholder="e.g., 6510 Wentworth Springs Rd&#10;6540 Wentworth Springs Rd"></textarea>
+                        </div>
+                    </div>
+
+                    <button class="process-btn" id="process-btn" onclick="startProcessing()">
+                        ▶ Analyze Documents
+                    </button>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section id="progress-section" class="progress-section hidden">
+                <div class="progress-card">
+                    <div class="progress-header">
+                        <h3>Processing Documents</h3>
+                        <span id="progress-pct" class="progress-pct">0%</span>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="progress-bar"></div>
+                    </div>
+                    <p id="progress-status" class="progress-status">Uploading files...</p>
+                    <div class="progress-detail">
+                        <span id="progress-pages">0 / 0 pages</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results-section" class="results-section hidden">
+                <div class="results-header">
+                    <h2>Analysis Results</h2>
+                    <div class="results-actions">
+                        <button class="action-btn" onclick="copyAllTables()">📋 Copy All</button>
+                        <button class="action-btn" onclick="exportHTML()">📥 Export HTML</button>
+                        <button class="action-btn secondary" onclick="resetApp()">🔄 New Analysis</button>
+                    </div>
+                </div>
+                <div id="results-container"></div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Historical Documentation Analyzer — Phase I ESA Tool — Model Agnostic</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
