@@ -107,7 +107,12 @@ def get_provider(provider_name: str = "auto", api_key: str | None = None) -> LLM
             provider_name = "openai"
     
     if provider_name == "anthropic":
-        key = api_key or os.environ.get("ANTHROPIC_API_KEY") or _load_anthropic_key()
+        key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        if not key:
+            raise RuntimeError(
+                "No Anthropic API key found. Set ANTHROPIC_API_KEY environment variable "
+                "or pass an API key in Settings."
+            )
         return AnthropicProvider(api_key=key)
     elif provider_name == "openai":
         key = api_key or os.environ.get("OPENAI_API_KEY", "")
@@ -121,12 +126,3 @@ def get_provider(provider_name: str = "auto", api_key: str | None = None) -> LLM
         raise ValueError(f"Unknown provider: {provider_name}")
 
 
-
-def _load_anthropic_key() -> str:
-    """Load Anthropic API key from environment."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        raise RuntimeError(
-            "No Anthropic API key found. Set ANTHROPIC_API_KEY environment variable."
-        )
-    return key

@@ -12,6 +12,15 @@ Phase I ESA tool that analyzes ERIS historical documentation packages (aerial ph
 - **Year range grouping** — Consecutive similar years automatically grouped
 - **Model agnostic** — Works with OpenAI (GPT-4o) or Anthropic (Claude Sonnet)
 
+## Prerequisites
+
+- Python 3.10+
+- **poppler** (required for PDF processing):
+  - macOS: `brew install poppler`
+  - Ubuntu/Debian: `apt-get install poppler-utils`
+  - Windows: [Download poppler](https://github.com/oschwartz10612/poppler-windows/releases)
+  - Or just use Docker (see below) — poppler is included.
+
 ## Quick Start (Local)
 
 ```bash
