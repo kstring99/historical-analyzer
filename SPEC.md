@@ -103,9 +103,8 @@ Test PDFs are at `~/EBI/Historicals/`:
 
 ## Key Technical Notes
 - poppler is installed (`brew install poppler` done)
-- Python venv at `~/clawd/venv/` has pdf2image, Pillow, requests
-- Anthropic API available via OAuth token in `~/.clawdbot/agents/main/agent/auth-profiles.json`
-- For Anthropic: use claude-sonnet-4-6 for vision analysis (cost-effective, good at image description)
+- Dependencies: pdf2image, Pillow, requests (see requirements.txt)
+- For Anthropic: use Claude Sonnet for vision analysis (cost-effective, good at image description)
 - Images should be sent as base64 to the vision API
 - Process pages in parallel where possible (batch API calls)
 

@@ -93,8 +93,6 @@ def get_provider(provider_name: str = "auto", api_key: str | None = None) -> LLM
     Priority for API keys:
     1. Explicitly passed api_key
     2. Environment variable (OPENAI_API_KEY or ANTHROPIC_API_KEY)
-    3. Server-side .env file
-    4. OpenClaw auth-profiles (dev only)
     
     Default provider is 'auto' — tries OpenAI first (enterprise), falls back to Anthropic.
     """
@@ -102,7 +100,7 @@ def get_provider(provider_name: str = "auto", api_key: str | None = None) -> LLM
         # Try OpenAI first (enterprise subscription), fall back to Anthropic
         if api_key or os.environ.get("OPENAI_API_KEY"):
             provider_name = "openai"
-        elif os.environ.get("ANTHROPIC_API_KEY") or _has_anthropic_auth():
+        elif os.environ.get("ANTHROPIC_API_KEY"):
             provider_name = "anthropic"
         else:
             # Default to OpenAI — enterprise deployments set OPENAI_API_KEY
@@ -123,20 +121,12 @@ def get_provider(provider_name: str = "auto", api_key: str | None = None) -> LLM
         raise ValueError(f"Unknown provider: {provider_name}")
 
 
-def _has_anthropic_auth() -> bool:
-    """Check if Anthropic auth is available (without loading)."""
-    auth_path = os.path.expanduser("~/.clawdbot/agents/main/agent/auth-profiles.json")
-    return os.path.exists(auth_path)
-
 
 def _load_anthropic_key() -> str:
-    """Load Anthropic API key from auth-profiles.json (dev/personal use)."""
-    auth_path = os.path.expanduser("~/.clawdbot/agents/main/agent/auth-profiles.json")
-    try:
-        with open(auth_path) as f:
-            data = json.load(f)
-        return data["profiles"]["anthropic:manual"]["token"]
-    except (FileNotFoundError, KeyError):
+    """Load Anthropic API key from environment."""
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
         raise RuntimeError(
-            "No Anthropic API key found. Set ANTHROPIC_API_KEY or configure auth-profiles.json"
+            "No Anthropic API key found. Set ANTHROPIC_API_KEY environment variable."
         )
+    return key
