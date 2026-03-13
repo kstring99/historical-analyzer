@@ -15,9 +15,17 @@ Phase I ESA tool that analyzes ERIS historical documentation packages (aerial ph
 ## Quick Start (Local)
 
 ```bash
+# Clone the repo
+git clone https://github.com/kstring99/historical-analyzer.git
+cd historical-analyzer
+
+# Install dependencies
 pip install -r requirements.txt
-# Set your API key
+
+# Set your API key (OpenAI or Anthropic — pick one)
 export OPENAI_API_KEY=sk-...
+# or: export ANTHROPIC_API_KEY=sk-ant-...
+
 # Run
 uvicorn app.main:app --port 8000
 ```
