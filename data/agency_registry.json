@@ -1,0 +1,42 @@
+{
+  "agencies": {
+    "san_diego_ca_fire_department": {
+      "jurisdiction": "san_diego_ca",
+      "agency_type": "fire_department",
+      "name": "San Diego Fire-Rescue Department \u2014 Hazmat Division",
+      "method": "email",
+      "contact_email": "hazmat@sandiego.gov",
+      "contact_phone": "(619) 533-4300",
+      "form_url": null,
+      "portal_url": null,
+      "mailing_address": null,
+      "notes": "Submit via email, typical response 10-14 business days",
+      "turnaround_days": 14,
+      "last_used": null,
+      "times_used": 0,
+      "avg_response_days": null
+    },
+    "san_diego_ca_health_department": {
+      "jurisdiction": "san_diego_ca",
+      "agency_type": "health_department",
+      "name": "County of San Diego DEH \u2014 Site Assessment and Mitigation",
+      "method": "portal",
+      "contact_email": null,
+      "contact_phone": null,
+      "form_url": null,
+      "portal_url": "https://www.sandiegocounty.gov/content/sdc/deh/land_and_water/sam.html",
+      "mailing_address": null,
+      "notes": "Search GeoTracker first, then submit portal request if needed",
+      "turnaround_days": 14,
+      "last_used": null,
+      "times_used": 0,
+      "avg_response_days": null
+    }
+  },
+  "jurisdictions": {
+    "san_diego_ca": [
+      "san_diego_ca_fire_department",
+      "san_diego_ca_health_department"
+    ]
+  }
+}

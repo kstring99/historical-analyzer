@@ -1,5 +1,6 @@
 import asyncio
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
@@ -9,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from app.models import Job, JobStatus, Zone
 from app.llm import get_provider
 from app.processor import process_document, generate_summary
+from app import foia
 
 app = FastAPI(title="Historical Documentation Analyzer")
 
@@ -153,6 +155,138 @@ async def get_results(job_id: str):
         results.append(doc_result)
     return {"job_id": job.job_id, "results": results, "summary": job.summary}
 
+
+# ── FOIA / Records Request Routes ────────────────────────────────────
+
+@app.get("/api/foia/agencies/{jurisdiction}")
+async def get_agencies(jurisdiction: str):
+    """Get all registered agencies for a jurisdiction."""
+    agencies = foia.get_agencies_for_jurisdiction(jurisdiction)
+    if not agencies:
+        return {"jurisdiction": jurisdiction, "agencies": [], "needed": list(foia.STANDARD_AGENCY_TYPES.keys())}
+    return {"jurisdiction": jurisdiction, "agencies": agencies}
+
+
+@app.post("/api/foia/agencies")
+async def add_agency(
+    jurisdiction: str = Form(...),
+    agency_type: str = Form(...),
+    name: str = Form(...),
+    method: str = Form(...),
+    contact_email: str = Form(default=""),
+    contact_phone: str = Form(default=""),
+    form_url: str = Form(default=""),
+    portal_url: str = Form(default=""),
+    mailing_address: str = Form(default=""),
+    notes: str = Form(default=""),
+):
+    """Register a new agency in the registry."""
+    agency_id = foia.add_agency(
+        jurisdiction=jurisdiction,
+        agency_type=agency_type,
+        name=name,
+        method=method,
+        contact_email=contact_email or None,
+        contact_phone=contact_phone or None,
+        form_url=form_url or None,
+        portal_url=portal_url or None,
+        mailing_address=mailing_address or None,
+        notes=notes or None,
+    )
+    return {"agency_id": agency_id, "status": "registered"}
+
+
+@app.post("/api/foia/generate")
+async def generate_requests(
+    jurisdiction: str = Form(...),
+    address: str = Form(...),
+    city: str = Form(...),
+    state: str = Form(...),
+    zip_code: str = Form(...),
+    parcel_number: str = Form(default=""),
+    business_names: str = Form(default=""),
+    start_year: str = Form(default="2000"),
+    project_number: str = Form(default=""),
+    consultant_name: str = Form(default=""),
+    consultant_title: str = Form(default=""),
+    consultant_email: str = Form(default=""),
+    consultant_phone: str = Form(default=""),
+    company_name: str = Form(default=""),
+    company_address: str = Form(default=""),
+):
+    """Generate records requests for all agencies in a jurisdiction."""
+    site_info = {
+        "address": address,
+        "city": city,
+        "state": state,
+        "zip_code": zip_code,
+        "parcel_number": parcel_number,
+        "business_names": [b.strip() for b in business_names.split("\n") if b.strip()],
+        "start_year": start_year,
+        "project_number": project_number,
+    }
+    consultant_info = {
+        "name": consultant_name,
+        "title": consultant_title,
+        "email": consultant_email,
+        "phone": consultant_phone,
+        "company": company_name,
+        "company_address": company_address,
+    }
+    
+    requests = foia.generate_all_requests(jurisdiction, site_info, consultant_info)
+    
+    # Track all generated requests
+    for req in requests:
+        if req.get("request_id"):
+            foia.track_request(req)
+    
+    return {"requests": requests, "count": len(requests)}
+
+
+@app.post("/api/foia/requests/{request_id}/sent")
+async def mark_request_sent(request_id: str):
+    """Mark a request as sent."""
+    foia.mark_sent(request_id)
+    return {"status": "sent", "follow_up_due": (datetime.now() + timedelta(days=14)).isoformat()[:10]}
+
+
+@app.post("/api/foia/requests/{request_id}/received")
+async def mark_request_received(request_id: str, summary: str = Form(default="")):
+    """Mark a request as received with optional summary."""
+    foia.mark_received(request_id, summary)
+    return {"status": "received"}
+
+
+@app.post("/api/foia/requests/{request_id}/no-records")
+async def mark_no_records(request_id: str):
+    """Mark a request as no records found."""
+    foia.mark_no_records(request_id)
+    return {"status": "no_records"}
+
+
+@app.get("/api/foia/follow-ups")
+async def get_follow_ups():
+    """Get all requests where follow-up is due."""
+    due = foia.get_follow_ups_due()
+    return {"follow_ups": due, "count": len(due)}
+
+
+@app.get("/api/foia/project/{project_number}")
+async def get_project_requests(project_number: str):
+    """Get all requests for a project."""
+    requests = foia.get_requests_by_project(project_number)
+    return {"requests": requests, "count": len(requests)}
+
+
+@app.get("/api/foia/roc/{project_number}")
+async def get_roc(project_number: str):
+    """Generate Records of Communication table."""
+    html = foia.generate_roc_html(project_number)
+    return HTMLResponse(content=html)
+
+
+# ── Export Routes ────────────────────────────────────────────────────
 
 @app.post("/api/export/{job_id}")
 async def export_results(job_id: str, format: str = Form(default="html")):
