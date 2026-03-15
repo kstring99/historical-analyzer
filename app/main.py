@@ -156,6 +156,21 @@ async def get_results(job_id: str):
     return {"job_id": job.job_id, "results": results, "summary": job.summary}
 
 
+# ── FOIA Pages & API Routes ──────────────────────────────────────────
+
+@app.get("/foia")
+async def foia_page():
+    return FileResponse(str(STATIC_DIR / "foia.html"))
+
+
+@app.get("/api/foia/jurisdictions")
+async def get_jurisdictions():
+    """Return all known jurisdictions from the registry."""
+    reg = foia.load_registry()
+    jurisdictions = list(reg.get("jurisdictions", {}).keys())
+    return {"jurisdictions": jurisdictions}
+
+
 # ── FOIA / Records Request Routes ────────────────────────────────────
 
 @app.get("/api/foia/agencies/{jurisdiction}")

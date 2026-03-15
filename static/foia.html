@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOIA Records Manager — Phase I ESA</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">📋</div>
+                    <div>
+                        <h1>FOIA Records Manager</h1>
+                        <p class="subtitle">Phase I ESA — Agency Records Requests</p>
+                    </div>
+                </div>
+            </div>
+            <nav class="nav-tabs">
+                <a href="/" class="nav-tab">Historical Analysis</a>
+                <a href="/foia" class="nav-tab active">FOIA Manager</a>
+            </nav>
+        </header>
+
+        <main class="main-content">
+            <!-- Follow-up Alert Banner -->
+            <div id="followup-banner" class="followup-banner hidden">
+                <span id="followup-count"></span> follow-up(s) due — requests awaiting response
+                <button onclick="scrollToTracker()" class="followup-link">View in tracker</button>
+            </div>
+
+            <!-- Section 1: New Records Request -->
+            <section class="foia-section" id="new-request-section">
+                <h2 class="foia-section-title">New Records Request</h2>
+                <form id="request-form" class="foia-form" onsubmit="handleGenerateSubmit(event)">
+                    <div class="form-section-label">Project Info</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="project-number">Project Number *</label>
+                            <input type="text" id="project-number" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="start-year">Start Year</label>
+                            <input type="text" id="start-year" value="2000">
+                        </div>
+                    </div>
+
+                    <div class="form-section-label">Site Information</div>
+                    <div class="form-grid">
+                        <div class="form-group form-group-full">
+                            <label for="property-address">Property Address *</label>
+                            <input type="text" id="property-address" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="city">City *</label>
+                            <input type="text" id="city" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="state">State *</label>
+                            <input type="text" id="state" required placeholder="e.g., CA">
+                        </div>
+                        <div class="form-group">
+                            <label for="zip-code">ZIP Code *</label>
+                            <input type="text" id="zip-code" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="parcel-number">Parcel Number (APN)</label>
+                            <input type="text" id="parcel-number">
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group form-group-full">
+                            <label for="business-names">Business Names <span class="optional">(one per line)</span></label>
+                            <textarea id="business-names" rows="3" placeholder="ABC Corporation&#10;XYZ Industries"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section-label">Jurisdiction</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="jurisdiction-select">Jurisdiction *</label>
+                            <select id="jurisdiction-select" onchange="handleJurisdictionChange()" required>
+                                <option value="">Select jurisdiction...</option>
+                                <option value="__new__">+ Add New Jurisdiction</option>
+                            </select>
+                        </div>
+                        <div class="form-group hidden" id="new-jurisdiction-group">
+                            <label for="new-county">County Name</label>
+                            <input type="text" id="new-county" placeholder="e.g., San Diego">
+                        </div>
+                        <div class="form-group hidden" id="new-state-group">
+                            <label for="new-state">State</label>
+                            <input type="text" id="new-state" placeholder="e.g., CA">
+                        </div>
+                    </div>
+
+                    <div class="form-section-label">Consultant Information</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="consultant-name">Name</label>
+                            <input type="text" id="consultant-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="consultant-title">Title</label>
+                            <input type="text" id="consultant-title">
+                        </div>
+                        <div class="form-group">
+                            <label for="consultant-email">Email</label>
+                            <input type="email" id="consultant-email">
+                        </div>
+                        <div class="form-group">
+                            <label for="consultant-phone">Phone</label>
+                            <input type="tel" id="consultant-phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="company-name">Company</label>
+                            <input type="text" id="company-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="company-address">Company Address</label>
+                            <input type="text" id="company-address">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="generate-btn" id="generate-btn">Generate Requests</button>
+                </form>
+            </section>
+
+            <!-- Section 2: Generated Requests -->
+            <section class="foia-section hidden" id="generated-section">
+                <div class="section-header-row">
+                    <h2 class="foia-section-title">Generated Requests</h2>
+                    <span id="generated-count" class="section-count"></span>
+                </div>
+                <div id="requests-container" class="request-cards"></div>
+            </section>
+
+            <!-- Section 3: Request Tracker -->
+            <section class="foia-section" id="tracker-section">
+                <h2 class="foia-section-title">Request Tracker</h2>
+                <div class="tracker-controls">
+                    <div class="tracker-input-group">
+                        <input type="text" id="tracker-project" placeholder="Project number...">
+                        <button onclick="loadTrackerFromInput()" class="tracker-load-btn">Load Project</button>
+                    </div>
+                </div>
+                <div id="tracker-container">
+                    <p class="tracker-empty">Enter a project number to view tracked requests.</p>
+                </div>
+            </section>
+
+            <!-- Section 4: Agency Registry -->
+            <section class="foia-section" id="registry-section">
+                <div class="section-header-row">
+                    <h2 class="foia-section-title">Agency Registry</h2>
+                    <button onclick="toggleRegistryForm()" class="toggle-btn" id="registry-toggle-btn">+ Add Agency</button>
+                </div>
+
+                <!-- Add Agency Form (collapsible) -->
+                <div id="registry-form-container" class="registry-form-container hidden">
+                    <form id="agency-form" class="foia-form" onsubmit="handleAddAgency(event)">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="agency-jurisdiction">Jurisdiction *</label>
+                                <select id="agency-jurisdiction" required onchange="handleAgencyJurisdictionChange()">
+                                    <option value="">Select...</option>
+                                    <option value="__new__">+ Add New</option>
+                                </select>
+                            </div>
+                            <div class="form-group hidden" id="agency-new-jurisdiction-group">
+                                <label for="agency-new-county">County</label>
+                                <input type="text" id="agency-new-county">
+                            </div>
+                            <div class="form-group hidden" id="agency-new-state-group">
+                                <label for="agency-new-state">State</label>
+                                <input type="text" id="agency-new-state">
+                            </div>
+                            <div class="form-group">
+                                <label for="agency-type">Agency Type *</label>
+                                <select id="agency-type" required>
+                                    <option value="">Select type...</option>
+                                    <option value="fire_department">Fire Department</option>
+                                    <option value="health_department">Health Department</option>
+                                    <option value="building_department">Building Department</option>
+                                    <option value="state_environmental">State Environmental</option>
+                                    <option value="water_board">Water Board</option>
+                                    <option value="public_works">Public Works</option>
+                                    <option value="air_quality">Air Quality</option>
+                                    <option value="county_environmental">County Environmental</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="agency-name">Agency Name *</label>
+                                <input type="text" id="agency-name" required placeholder="e.g., San Diego Fire-Rescue Dept">
+                            </div>
+                            <div class="form-group">
+                                <label for="agency-method">Request Method *</label>
+                                <select id="agency-method" required onchange="handleMethodChange()">
+                                    <option value="">Select method...</option>
+                                    <option value="email">Email</option>
+                                    <option value="form">Online Form</option>
+                                    <option value="portal">Web Portal</option>
+                                    <option value="mail">Physical Mail</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="agency-email-group">
+                                <label for="agency-contact-email">Contact Email</label>
+                                <input type="email" id="agency-contact-email">
+                            </div>
+                            <div class="form-group">
+                                <label for="agency-contact-phone">Contact Phone</label>
+                                <input type="tel" id="agency-contact-phone">
+                            </div>
+                            <div class="form-group hidden" id="agency-form-url-group">
+                                <label for="agency-form-url">Form URL</label>
+                                <input type="url" id="agency-form-url">
+                            </div>
+                            <div class="form-group hidden" id="agency-portal-url-group">
+                                <label for="agency-portal-url">Portal URL</label>
+                                <input type="url" id="agency-portal-url">
+                            </div>
+                            <div class="form-group hidden" id="agency-mailing-group">
+                                <label for="agency-mailing-address">Mailing Address</label>
+                                <input type="text" id="agency-mailing-address">
+                            </div>
+                            <div class="form-group form-group-full">
+                                <label for="agency-notes">Notes</label>
+                                <textarea id="agency-notes" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <button type="submit" class="generate-btn">Register Agency</button>
+                    </form>
+                </div>
+
+                <!-- Registry List -->
+                <div class="registry-filter">
+                    <select id="registry-jurisdiction-filter" onchange="loadRegistryAgencies()">
+                        <option value="">All jurisdictions</option>
+                    </select>
+                </div>
+                <div id="registry-list" class="agency-list">
+                    <p class="tracker-empty">No agencies registered yet.</p>
+                </div>
+            </section>
+
+            <!-- Section 5: ROC Export -->
+            <section class="foia-section" id="roc-section">
+                <h2 class="foia-section-title">Records of Communication (ROC)</h2>
+                <div class="roc-controls">
+                    <div class="tracker-input-group">
+                        <input type="text" id="roc-project" placeholder="Project number...">
+                        <button onclick="generateROC()" class="tracker-load-btn">Generate ROC Table</button>
+                    </div>
+                </div>
+                <div id="roc-container"></div>
+                <div id="roc-actions" class="hidden roc-actions">
+                    <button onclick="copyROCHtml()" class="action-btn">Copy HTML</button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Phase I ESA Tool — Historical Documentation & FOIA Records</p>
+        </footer>
+    </div>
+
+    <!-- Received Modal -->
+    <div class="modal-overlay hidden" id="received-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Mark Request as Received</h3>
+                <button class="modal-close" onclick="closeReceivedModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="received-summary">Response Summary</label>
+                <textarea id="received-summary" rows="4" placeholder="Summarize the records received..."></textarea>
+                <input type="hidden" id="received-request-id">
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn secondary" onclick="closeReceivedModal()">Cancel</button>
+                <button class="action-btn" onclick="submitReceived()">Mark Received</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/foia.js"></script>
+</body>
+</html>
