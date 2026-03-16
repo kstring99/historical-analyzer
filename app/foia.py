@@ -518,7 +518,7 @@ def generate_roc_table(project_number: str) -> list[dict]:
     requests = get_requests_by_project(project_number)
     
     roc_rows = []
-    for req in sorted(requests, key=lambda r: r.get("sent_at", "")):
+    for req in sorted(requests, key=lambda r: r.get("sent_at") or ""):
         status = req.get("status", "draft")
         
         if status == RequestStatus.RECEIVED.value:
