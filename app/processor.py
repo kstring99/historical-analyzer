@@ -41,11 +41,21 @@ def extract_pages(pdf_path: str, dpi: int = 200) -> list[Image.Image]:
     return convert_from_path(pdf_path, dpi=dpi)
 
 
-def image_to_bytes(img: Image.Image, fmt: str = "JPEG", quality: int = 85) -> tuple[bytes, str]:
-    """Convert PIL Image to bytes. Returns (bytes, media_type)."""
+def image_to_bytes(img: Image.Image, fmt: str = "JPEG", quality: int = 75, max_dim: int = 512) -> tuple[bytes, str]:
+    """Convert PIL Image to bytes, resizing if needed. Returns (bytes, media_type).
+    
+    Note: OAuth tokens (sk-ant-oat01-*) have a ~30KB image size limit.
+    Standard API keys (sk-ant-api03-*) support much larger images.
+    Default max_dim=512 keeps images under the OAuth limit.
+    """
+    orig_size = img.size
+    if max(img.size) > max_dim:
+        img = img.copy()
+        img.thumbnail((max_dim, max_dim), Image.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format=fmt, quality=quality)
     media_type = "image/jpeg" if fmt.upper() in ("JPEG", "JPG") else "image/png"
+    print(f"[image_to_bytes] {orig_size} → {img.size}, {len(buf.getvalue())} bytes")
     return buf.getvalue(), media_type
 
 
