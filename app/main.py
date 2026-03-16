@@ -297,6 +297,14 @@ async def get_project_requests(project_number: str):
 @app.get("/api/foia/roc/{project_number}")
 async def get_roc(project_number: str):
     """Generate Records of Communication table."""
+    requests = foia.get_requests_by_project(project_number)
+    if not requests:
+        return HTMLResponse(
+            content='<div style="text-align:center;padding:40px;color:#718096;">'
+            '<p style="font-size:1.2em;margin-bottom:8px;">No requests found for this project.</p>'
+            '<p>Generate requests first using the <strong>New Project Request</strong> section above, '
+            'then come back here to export the ROC table.</p></div>'
+        )
     html = foia.generate_roc_html(project_number)
     return HTMLResponse(content=html)
 
