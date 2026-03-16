@@ -11,6 +11,7 @@ from app.models import Job, JobStatus, Zone
 from app.llm import get_provider
 from app.processor import process_document, generate_summary
 from app import foia
+from app import site_data
 
 app = FastAPI(title="Historical Documentation Analyzer")
 
@@ -307,6 +308,22 @@ async def get_roc(project_number: str):
         )
     html = foia.generate_roc_html(project_number)
     return HTMLResponse(content=html)
+
+
+# ── Site Data Routes (Government Data Puller) ────────────────────────
+
+@app.post("/api/site-data/pull")
+async def pull_site_data(address: str = Form(...)):
+    """Pull all government site data for an address (sections 3.5.1-3.5.4)."""
+    result = await site_data.pull_all_site_data(address)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.get("/site-data")
+async def site_data_page():
+    return FileResponse(str(STATIC_DIR / "site_data.html"))
 
 
 # ── Export Routes ────────────────────────────────────────────────────
