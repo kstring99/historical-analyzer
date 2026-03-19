@@ -165,6 +165,11 @@ async function loadResults() {
             `;
         }
 
+        if (!data.results || !Array.isArray(data.results)) {
+            showError('No results available. The analysis may have failed — check job status.');
+            return;
+        }
+
         data.results.forEach(doc => {
             const sectionTitle = {
                 aerial: 'Aerial Photographs',

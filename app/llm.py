@@ -105,7 +105,7 @@ class OpenClawProvider(LLMProvider):
         self.token = token or os.environ.get("OPENCLAW_TOKEN", "")
         self.model = model or os.environ.get("OPENCLAW_MODEL", "anthropic/claude-sonnet-4-6")
         import httpx
-        self._client = httpx.Client(timeout=120.0)
+        self._client = httpx.Client(timeout=300.0)
     
     def _call(self, messages: list) -> str:
         resp = self._client.post(

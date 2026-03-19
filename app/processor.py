@@ -41,12 +41,11 @@ def extract_pages(pdf_path: str, dpi: int = 200) -> list[Image.Image]:
     return convert_from_path(pdf_path, dpi=dpi)
 
 
-def image_to_bytes(img: Image.Image, fmt: str = "JPEG", quality: int = 75, max_dim: int = 512) -> tuple[bytes, str]:
+def image_to_bytes(img: Image.Image, fmt: str = "JPEG", quality: int = 85, max_dim: int = 1024) -> tuple[bytes, str]:
     """Convert PIL Image to bytes, resizing if needed. Returns (bytes, media_type).
     
-    Note: OAuth tokens (sk-ant-oat01-*) have a ~30KB image size limit.
-    Standard API keys (sk-ant-api03-*) support much larger images.
-    Default max_dim=512 keeps images under the OAuth limit.
+    max_dim=1024 provides good quality for LLM vision analysis.
+    Increase to 1568 for maximum Anthropic API quality (costs more tokens).
     """
     orig_size = img.size
     if max(img.size) > max_dim:
@@ -231,6 +230,11 @@ def _group_year_ranges(pages: list[PageResult], zone: str) -> list[TableRow]:
     if not pages:
         return []
     
+    # Filter out pages with empty years (cover/title pages that slipped through)
+    pages = [p for p in pages if p.year and p.year.strip()]
+    if not pages:
+        return []
+    
     # Sort by year
     sorted_pages = sorted(pages, key=lambda p: p.year)
     
@@ -286,39 +290,56 @@ def _group_year_ranges(pages: list[PageResult], zone: str) -> list[TableRow]:
 def _observations_similar(obs1: str, obs2: str) -> bool:
     """Check if two observations are similar enough to group.
     
-    Aggressive grouping — ESA tables should minimize repetition.
-    If the land use hasn't fundamentally changed, group the years.
+    Very aggressive grouping — ESA tables should minimize repetition.
+    If the fundamental land use hasn't changed, group the years.
+    Key principle: only split when something materially changed (new structure,
+    demolition, land use change, new environmental concern).
     """
     if not obs1 or not obs2:
         return False
     
-    # Normalize
     obs1_clean = obs1.lower().strip()
     obs2_clean = obs2.lower().strip()
     
-    # Extract key land-use words (the things that actually matter for ESA)
-    land_use_keywords = {
-        'undeveloped', 'residential', 'commercial', 'industrial', 'agricultural',
-        'vacant', 'wooded', 'forested', 'cleared', 'graded', 'paved',
-        'parking', 'structure', 'building', 'school', 'church', 'store',
-        'tanks', 'staining', 'fuel', 'canopy', 'drums', 'equipment',
-        'baseball', 'athletic', 'recreation', 'playground'
-    }
+    # Environmental concerns should NEVER be grouped with non-concerns
+    concern_words = {'tanks', 'staining', 'fuel', 'canopy', 'drums', 'equipment',
+                     'contamination', 'hazardous', 'disposal', 'waste', 'spill'}
+    has_concern1 = any(w in obs1_clean for w in concern_words)
+    has_concern2 = any(w in obs2_clean for w in concern_words)
+    if has_concern1 != has_concern2:
+        return False
     
-    # Check if key land-use terms match
-    terms1 = set(w for w in re.findall(r'\b\w+\b', obs1_clean) if w in land_use_keywords)
-    terms2 = set(w for w in re.findall(r'\b\w+\b', obs2_clean) if w in land_use_keywords)
+    # Extract the PRIMARY land use category
+    def get_land_use(text):
+        categories = []
+        if any(w in text for w in ['undeveloped', 'vacant', 'wooded', 'forested', 'rural', 'vegetation', 'trees']):
+            categories.append('undeveloped')
+        if any(w in text for w in ['residential', 'home', 'house', 'dwelling']):
+            categories.append('residential')
+        if any(w in text for w in ['commercial', 'institutional', 'building', 'structure', 'roof']):
+            categories.append('commercial')
+        if any(w in text for w in ['industrial', 'manufacturing', 'factory', 'warehouse']):
+            categories.append('industrial')
+        if any(w in text for w in ['agricultural', 'farm', 'crop', 'orchard']):
+            categories.append('agricultural')
+        if any(w in text for w in ['cleared', 'graded', 'paved', 'parking']):
+            categories.append('developed')
+        return set(categories)
     
-    if terms1 and terms2:
-        # If land-use keywords are the same, it's the same observation
-        if terms1 == terms2:
+    use1 = get_land_use(obs1_clean)
+    use2 = get_land_use(obs2_clean)
+    
+    # If primary land use categories match, group them
+    if use1 and use2 and use1 == use2:
+        return True
+    
+    # If there's significant overlap in land use categories, group
+    if use1 and use2:
+        overlap = len(use1 & use2) / max(len(use1), len(use2))
+        if overlap >= 0.5:
             return True
-        # High overlap in key terms = same
-        overlap = len(terms1 & terms2) / max(len(terms1), len(terms2))
-        if overlap >= 0.7:
-            return True
     
-    # Fallback: general word overlap with lower threshold
+    # Fallback: general word overlap
     words1 = set(re.findall(r'\b\w{4,}\b', obs1_clean))
     words2 = set(re.findall(r'\b\w{4,}\b', obs2_clean))
     
@@ -326,7 +347,7 @@ def _observations_similar(obs1: str, obs2: str) -> bool:
         return False
     
     overlap = len(words1 & words2) / max(len(words1), len(words2))
-    return overlap > 0.45  # More aggressive grouping (was 0.6)
+    return overlap > 0.35
 
 
 # --- Page analysis ---
