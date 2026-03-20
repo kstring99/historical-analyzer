@@ -29,8 +29,9 @@ class Zone(str, Enum):
 class TableRow:
     """Single row in the output table."""
     year_range: str  # e.g., "1946 - 1978"
-    issues_noted: str  # "Yes" or "No"
+    issues_noted: str  # "Yes" or "No" (clean, no description)
     observations: str  # Description text or occupant listing
+    issues_detail: str = ""  # Full issue description for narrative summary
 
 
 @dataclass

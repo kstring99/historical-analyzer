@@ -273,15 +273,25 @@ def _group_year_ranges(pages: list[PageResult], zone: str) -> list[TableRow]:
             year_range = group[0].year
         else:
             year_range = f"{group[0].year} - {group[-1].year}"
-        
+
         # Use the most detailed observation from the group (usually the last one)
         obs = get_obs(group[-1]) or get_obs(group[0])
-        issues = get_issues(group[-1])
-        
+        issues_raw = get_issues(group[-1])
+
+        # Clean issues for table display: only "Yes" or "No"
+        # Preserve full detail for narrative summary
+        if issues_raw.lower().startswith("yes"):
+            issues_clean = "Yes"
+            issues_detail = issues_raw
+        else:
+            issues_clean = "No"
+            issues_detail = ""
+
         rows.append(TableRow(
             year_range=year_range,
-            issues_noted=issues,
-            observations=obs
+            issues_noted=issues_clean,
+            observations=obs,
+            issues_detail=issues_detail,
         ))
     
     return rows
@@ -576,13 +586,14 @@ async def generate_summary(documents: list, llm: LLMProvider) -> str:
         
         years = ", ".join(doc.years_reviewed) if doc.years_reviewed else "unknown years"
         
-        # Collect issues
+        # Collect issues (use issues_detail for full description in narrative)
         issues = []
         for table in doc.tables:
             zone_label = table.zone.value
             for row in table.rows:
                 if row.issues_noted.lower().startswith("yes"):
-                    issues.append(f"  - {zone_label.upper()} ({row.year_range}): {row.issues_noted}")
+                    detail = row.issues_detail or row.issues_noted
+                    issues.append(f"  - {zone_label.upper()} ({row.year_range}): {detail}")
         
         part = f"**{doc_label}** (years: {years}):\n"
         if issues:
