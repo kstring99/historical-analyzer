@@ -98,7 +98,7 @@ Analyze THREE zones and provide observations for each:
 
 Extract the YEAR from the footer bar.
 
-CONSISTENCY: Use consistent terminology across years. If undeveloped land stays undeveloped, describe it the same way each time so years can be grouped. Only change your description when the land use ACTUALLY changes (e.g., new structure built, land cleared, new development). Focus on WHAT CHANGED from one era to the next, not minor phrasing differences.
+CONSISTENCY: Use consistent terminology across years. If undeveloped land stays undeveloped, describe it the same way each time so years can be grouped. Only change your description when the land use ACTUALLY changes (e.g., new structure built, land cleared, new development). Focus on WHAT CHANGED from one era to the next, not minor phrasing differences. Keep each zone description to 1-2 sentences. Focus on WHAT the land use is, not lengthy descriptions of what you see. Example: "Commercial building with paved lot and adjacent cleared area" not "The subject property appears to contain a commercial or institutional building with a light-colored roof, surrounded by paved areas and some adjacent cleared ground."
 
 Format your response EXACTLY as:
 YEAR: [year from footer]
@@ -131,6 +131,8 @@ Analyze THREE zones:
    Normal development (roads, buildings, residential areas) is NOT a concern. If "Yes", state EXACTLY what map feature you see.
 
 Extract the YEAR from the footer.
+
+CONSISTENCY: Use consistent terminology across years. If terrain and land use haven't changed, describe it the same way so years can be grouped. Keep each zone description to 1-2 sentences. Focus on WHAT the land use is, not lengthy descriptions of map features. Example: "Undeveloped hilly terrain with no structures" not "The subject property appears to be located in an area of undeveloped hilly terrain with scattered trees and natural vegetation, with no structures or development indicated on the map."
 
 Format your response EXACTLY as:
 YEAR: [year]
@@ -276,6 +278,13 @@ def _group_year_ranges(pages: list[PageResult], zone: str) -> list[TableRow]:
 
         # Use the most detailed observation from the group (usually the last one)
         obs = get_obs(group[-1]) or get_obs(group[0])
+
+        # Condense observations: aggressive for grouped rows, light cap for singles
+        if len(group) > 1:
+            obs = _condense_observation(obs, max_len=100)
+        else:
+            obs = _condense_observation(obs, max_len=200)
+
         issues_raw = get_issues(group[-1])
 
         # Clean issues for table display: only "Yes" or "No"
@@ -295,6 +304,81 @@ def _group_year_ranges(pages: list[PageResult], zone: str) -> list[TableRow]:
         ))
     
     return rows
+
+
+def _condense_observation(obs: str, max_len: int = 120) -> str:
+    """Strip boilerplate and condense an observation to a short land-use summary.
+
+    Preserves environmental concern language (tanks, staining, etc.) so
+    nothing safety-relevant is silently dropped.
+    """
+    if not obs:
+        return obs
+
+    text = obs.strip()
+
+    # Strip common LLM boilerplate openers
+    boilerplate = [
+        r"^The subject property appears to (?:be |contain |show )?",
+        r"^The surrounding area (?:is |appears to (?:be )?)?",
+        r"^The adjoining propert(?:y|ies) appear(?:s)? to (?:be |consist of )?",
+        r"^The topographic map (?:shows |depicts |indicates )?",
+    ]
+    for pat in boilerplate:
+        text = re.sub(pat, "", text, count=1, flags=re.IGNORECASE)
+
+    # Capitalise first letter after stripping
+    if text:
+        text = text[0].upper() + text[1:]
+
+    # Strip filler phrases that add length without information
+    filler = [
+        r",?\s*consistent with the surrounding[^.]*",
+        r",?\s*which is consistent with[^.]*",
+        r"\s*No\s+(?:significant\s+)?changes?\s+(?:are\s+)?(?:observed|visible|apparent|noted)[^.]*\.",
+        r"\s*within the green rectangle",
+        r",?\s*as (?:seen|observed|depicted|shown) in (?:the|this) (?:image|photograph|photo|map)[^.]*",
+    ]
+    for pat in filler:
+        text = re.sub(pat, "", text, flags=re.IGNORECASE)
+    # "covered with" → "with" (separate because it's a replacement, not removal)
+    text = re.sub(r"\bcovered with\b", "with", text, flags=re.IGNORECASE)
+    # "covered with" → "with" leaves a double space or leading "with" — clean up
+    text = re.sub(r"\s{2,}", " ", text).strip()
+
+    # Ensure it ends with a period
+    if text and not text.endswith("."):
+        text += "."
+
+    # If it's already short enough, return
+    if len(text) <= max_len:
+        return text
+
+    # Keep environmental-concern sentences intact
+    concern_words = {
+        "tank", "tanks", "staining", "fuel", "canopy", "drums",
+        "contamination", "hazardous", "disposal", "waste", "spill",
+        "ust", "ast", "gasoline", "petroleum",
+    }
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    kept: list[str] = []
+    length = 0
+    for sent in sentences:
+        has_concern = any(w in sent.lower() for w in concern_words)
+        if has_concern:
+            # Always keep concern sentences
+            kept.append(sent)
+            length += len(sent) + 1
+        elif length + len(sent) + 1 <= max_len:
+            kept.append(sent)
+            length += len(sent) + 1
+
+    result = " ".join(kept) if kept else sentences[0]
+    # Hard cap — truncate at last word boundary
+    if len(result) > max_len + 20:
+        result = result[: max_len].rsplit(" ", 1)[0].rstrip(",;:") + "."
+    return result
 
 
 def _observations_similar(obs1: str, obs2: str) -> bool:
