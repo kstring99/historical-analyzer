@@ -1,7 +1,10 @@
 import base64
 import json
+import logging
 import os
 from abc import ABC, abstractmethod
+
+logger = logging.getLogger(__name__)
 
 import anthropic
 import openai
@@ -51,7 +54,7 @@ class AnthropicProvider(LLMProvider):
                 return message.content[0].text
             except Exception as e:
                 if "500" in str(e) and attempt < 2:
-                    print(f"[LLM] Vision 500 error, retry {attempt + 1}/3...")
+                    logger.warning(f"Vision 500 error, retry {attempt + 1}/3...")
                     time.sleep(1)
                     continue
                 raise

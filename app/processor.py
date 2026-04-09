@@ -1,8 +1,11 @@
 import io
 import asyncio
 import concurrent.futures
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from pdf2image import convert_from_path
 from PIL import Image
@@ -54,7 +57,7 @@ def image_to_bytes(img: Image.Image, fmt: str = "JPEG", quality: int = 85, max_d
     buf = io.BytesIO()
     img.save(buf, format=fmt, quality=quality)
     media_type = "image/jpeg" if fmt.upper() in ("JPEG", "JPG") else "image/png"
-    print(f"[image_to_bytes] {orig_size} → {img.size}, {len(buf.getvalue())} bytes")
+    logger.debug(f"[image_to_bytes] {orig_size} → {img.size}, {len(buf.getvalue())} bytes")
     return buf.getvalue(), media_type
 
 
