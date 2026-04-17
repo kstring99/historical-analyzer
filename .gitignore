@@ -9,3 +9,9 @@ __pycache__/
 static/demo-output.html
 test_map_output/
 map_output/
+cv_report/
+test_aerials/
+test_report/
+training_data/
+models/
+*.pt
