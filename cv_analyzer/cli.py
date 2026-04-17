@@ -12,7 +12,7 @@ from cv_analyzer.report import generate_report
 
 
 def cmd_analyze(args):
-    """Analyze aerial photos: change detection + object detection."""
+    """Analyze aerial photos: change detection + object detection + optional tables."""
     input_dir = Path(args.input)
     output_dir = Path(args.output)
 
@@ -34,6 +34,16 @@ def cmd_analyze(args):
     for entry in entries:
         entry["image"] = normalize(entry["image"], target_long_edge=target_size)
 
+    # --- Detect property boundary (green rectangle) on each image ---
+    from cv_analyzer.aerial.boundary import detect_green_boundary, classify_zone
+
+    boundaries = {}
+    for entry in entries:
+        boundary = detect_green_boundary(entry["image"])
+        boundaries[entry["year"]] = boundary
+        if boundary is not None:
+            print(f"  {entry['year']}: Green boundary detected")
+
     # --- Object detection on each image ---
     print("\n--- Object Detection ---")
     image_results = []
@@ -43,6 +53,11 @@ def cmd_analyze(args):
         detections = detect_objects(entry["image"])
         elapsed = time.time() - t0
 
+        # Classify each detection into a zone
+        boundary = boundaries.get(entry["year"])
+        for det in detections:
+            det["zone"] = classify_zone(det["bbox"], boundary, entry["image"].shape)
+
         image_results.append({
             "filename": entry["filename"],
             "year": entry["year"],
@@ -51,7 +66,7 @@ def cmd_analyze(args):
         })
 
         det_summary = ", ".join(
-            f"{d['class']}({d['confidence']})" for d in detections[:5]
+            f"{d['class']}({d['confidence']},{d['zone']})" for d in detections[:5]
         )
         print(
             f"  {entry['year']} ({entry['filename']}): "
@@ -75,6 +90,11 @@ def cmd_analyze(args):
             )
             elapsed = time.time() - t0
 
+            # Classify change regions into zones using the later image's boundary
+            boundary = boundaries.get(b["year"])
+            for ch in result.get("changes", []):
+                ch["zone"] = classify_zone(ch["bbox"], boundary, b["image"].shape)
+
             change_results.append(result)
 
             n_changes = len(result["changes"])
@@ -93,10 +113,6 @@ def cmd_analyze(args):
     if args.model:
         _run_classifier(args.model, image_results)
 
-    # --- Optional VLM fallback ---
-    if args.vlm:
-        _run_vlm_fallback(image_results, args.vlm_model, args.vlm_threshold)
-
     # --- Generate report ---
     print(f"\n--- Generating Report ---")
     report = generate_report(
@@ -114,6 +130,77 @@ def cmd_analyze(args):
                 f"    [{r['confidence']}] {r['type'].replace('_', ' ').title()} "
                 f"— {r['description']} (year: {r['year']})"
             )
+
+    # --- Tables (ESA-formatted output) ---
+    if args.tables:
+        _generate_tables(image_results, change_results, output_dir, args)
+
+
+def _generate_tables(image_results, change_results, output_dir, args):
+    """Generate ESA-formatted tables using local LLM."""
+    from cv_analyzer.ollama_client import check_available, list_models
+    from cv_analyzer.table_builder import (
+        build_tables, format_tables_text, format_tables_html,
+    )
+
+    print("\n--- Generating ESA Tables ---")
+
+    if not check_available():
+        print("  Warning: ollama not running. Using fallback (no LLM).", file=sys.stderr)
+        print("  Start ollama for better table output: ollama serve", file=sys.stderr)
+        llm_model = None
+    else:
+        available = list_models()
+        llm_model = args.llm_model
+        if llm_model not in available:
+            # Try to find a reasonable default
+            for candidate in ("llama3.2:3b", "qwen3:4b", "qwen3:8b", "llama3.2:1b"):
+                if candidate in available:
+                    llm_model = candidate
+                    break
+            else:
+                print(f"  Warning: model '{llm_model}' not found. Available: {available}", file=sys.stderr)
+                print("  Using fallback (no LLM).", file=sys.stderr)
+                llm_model = None
+
+    if llm_model:
+        print(f"  Using model: {llm_model}")
+
+    tables = build_tables(
+        image_results, change_results,
+        model=llm_model or "llama3.2:3b",
+        verbose=args.verbose,
+    )
+
+    output_path = Path(output_dir)
+
+    # Plain text tables
+    text = format_tables_text(tables)
+    text_path = output_path / "tables.txt"
+    with open(text_path, "w") as f:
+        f.write(text)
+    print(f"\n{text}")
+
+    # HTML tables (paste into Word/reports)
+    html = format_tables_html(tables)
+    html_path = output_path / "tables.html"
+    full_html = f"""<!DOCTYPE html>
+<html><head><title>ESA Historical Documentation Tables</title>
+<style>
+body{{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 20px}}
+table{{width:100%;border-collapse:collapse;margin-bottom:20px}}
+th,td{{border:1px solid #999;padding:8px;text-align:left}}
+th{{background:#e8e8e8;font-size:0.9em}}
+</style></head>
+<body>
+<h1>Historical Documentation Review</h1>
+{html}
+</body></html>"""
+    with open(html_path, "w") as f:
+        f.write(full_html)
+
+    print(f"  Text tables: {text_path}")
+    print(f"  HTML tables: {html_path}")
 
 
 def _run_classifier(model_path: str, image_results: list):
@@ -139,44 +226,9 @@ def _run_classifier(model_path: str, image_results: list):
             result = predict(model, tensor, device)
             det["classifier_class"] = result["class"]
             det["classifier_confidence"] = result["confidence"]
-            # Override CV class if classifier is confident
             if result["confidence"] > det["confidence"]:
                 det["class"] = result["class"]
                 det["confidence"] = result["confidence"]
-
-
-def _run_vlm_fallback(image_results: list, model: str, threshold: float):
-    """Run VLM on low-confidence detections."""
-    try:
-        from cv_analyzer.vlm_fallback import check_ollama, classify_with_vlm
-    except ImportError:
-        print("  Warning: VLM fallback not available.", file=sys.stderr)
-        return
-
-    if not check_ollama():
-        print("  Warning: ollama not running, skipping VLM fallback.", file=sys.stderr)
-        return
-
-    print(f"\n--- VLM Fallback (threshold < {threshold}) ---")
-    count = 0
-
-    for img_res in image_results:
-        for det in img_res.get("detections", []):
-            if det["confidence"] >= threshold:
-                continue
-            if det.get("crop") is None:
-                continue
-
-            result = classify_with_vlm(
-                det["crop"], det["class"], det["confidence"], model=model
-            )
-            if result:
-                det["vlm_class"] = result.get("class", det["class"])
-                det["vlm_confidence"] = result.get("confidence", 0)
-                det["vlm_reasoning"] = result.get("reasoning", "")
-                count += 1
-
-    print(f"  Processed {count} low-confidence detections via VLM.")
 
 
 def cmd_label(args):
@@ -213,9 +265,9 @@ def main():
     p_analyze.add_argument("-o", "--output", default="./cv_report", help="Output directory")
     p_analyze.add_argument("--resolution", type=int, default=1024, help="Target long-edge resolution")
     p_analyze.add_argument("--model", help="Path to trained classifier checkpoint (.pt)")
-    p_analyze.add_argument("--vlm", action="store_true", help="Enable VLM fallback for low-confidence detections")
-    p_analyze.add_argument("--vlm-model", default="llava:13b", help="Ollama model for VLM fallback")
-    p_analyze.add_argument("--vlm-threshold", type=float, default=0.7, help="Confidence threshold for VLM fallback")
+    p_analyze.add_argument("--tables", action="store_true", help="Generate ESA-formatted tables (uses local LLM)")
+    p_analyze.add_argument("--llm-model", default="llama3.2:3b", help="Ollama model for table generation")
+    p_analyze.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     # --- label ---
     p_label = subparsers.add_parser(
