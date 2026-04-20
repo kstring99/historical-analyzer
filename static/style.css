@@ -372,10 +372,41 @@ body {
     margin-bottom: 24px;
 }
 
+.zone-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
 .zone-title {
     color: #2d3748;
     font-size: 1.05em;
-    margin-bottom: 4px;
+}
+
+.table-copy-btn {
+    background: #f7fafc;
+    border: 1px solid #cbd5e0;
+    color: #2d3748;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.table-copy-btn:hover:not(:disabled) {
+    background: #edf2f7;
+    border-color: #a0aec0;
+}
+
+.table-copy-btn:disabled {
+    background: #c6f6d5;
+    border-color: #68d391;
+    color: #22543d;
+    cursor: default;
 }
 
 .table-caption {

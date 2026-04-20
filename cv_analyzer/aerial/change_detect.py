@@ -35,8 +35,10 @@ def detect_changes(
     gray_a = gray_a[:h, :w]
     gray_b = gray_b[:h, :w]
 
-    # Structural similarity — produces a per-pixel similarity map
-    ssim_score, ssim_map = structural_similarity(gray_a, gray_b, full=True)
+    # Structural similarity — produces a per-pixel similarity map.
+    # win_size must be odd and ≤ min(h, w); clamp for tiny image pairs.
+    win_size = min(7, h if h % 2 else h - 1, w if w % 2 else w - 1)
+    ssim_score, ssim_map = structural_similarity(gray_a, gray_b, full=True, win_size=win_size)
     diff_map = (1.0 - ssim_map) * 255
     diff_map = diff_map.astype(np.uint8)
 
@@ -76,8 +78,9 @@ def detect_changes(
         else:
             change_type = "structure_disappeared"
 
-        # Local SSIM for this region
-        if region_a.size > 0 and region_b.size > 0:
+        # Local SSIM for this region — skimage's default win_size is 7,
+        # so both dimensions must be ≥ 7 or the call raises.
+        if region_a.shape[0] >= 7 and region_a.shape[1] >= 7:
             local_ssim = float(structural_similarity(region_a, region_b))
         else:
             local_ssim = 0.0

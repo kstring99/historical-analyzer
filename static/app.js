@@ -51,8 +51,8 @@ function renderFileList() {
         const type = classifyFile(f.name);
         if (type === 'city_directory') hasCityDir = true;
         
-        const icon = { aerial: '🛩️', topo: '🗺️', city_directory: '📒', unknown: '📄' }[type];
-        const label = { aerial: 'Aerial Photos', topo: 'Topographic Maps', city_directory: 'City Directory', unknown: 'Unknown' }[type];
+        const icon = { aerial: '🛩️', topo: '🗺️', fim: '🔥', city_directory: '📒', unknown: '📄' }[type];
+        const label = { aerial: 'Aerial Photos', topo: 'Topographic Maps', fim: 'Fire Insurance Maps', city_directory: 'City Directory', unknown: 'Unknown' }[type];
         
         container.innerHTML += `
             <div class="file-item">
@@ -80,6 +80,7 @@ function classifyFile(name) {
     const n = name.toLowerCase();
     if (n.includes('aerial')) return 'aerial';
     if (n.includes('topo')) return 'topo';
+    if (n.includes('fim') || n.includes('sanborn') || n.includes('fire') || n.includes('insurance')) return 'fim';
     if (n.includes('cd') || n.includes('city') || n.includes('directory')) return 'city_directory';
     return 'unknown';
 }
@@ -124,11 +125,14 @@ function startPolling() {
             const res = await fetch(`/api/status/${currentJobId}`);
             const data = await res.json();
 
-            const pct = data.total_pages > 0 ? Math.round((data.progress / data.total_pages) * 100) : 0;
+            const pctRaw = data.total_pages > 0 ? (data.progress / data.total_pages) * 100 : 0;
+            const pct = Math.max(0, Math.min(100, Math.round(pctRaw)));
             document.getElementById('progress-pct').textContent = pct + '%';
             document.getElementById('progress-bar').style.width = pct + '%';
             document.getElementById('progress-status').textContent = data.current_file || 'Processing...';
-            document.getElementById('progress-pages').textContent = `${data.progress} / ${data.total_pages} pages`;
+            document.getElementById('progress-pages').textContent = data.total_pages > 0
+                ? `${Math.min(data.progress, data.total_pages)} / ${data.total_pages} pages`
+                : 'Preparing…';
 
             if (data.status === 'complete') {
                 clearInterval(pollInterval);
@@ -174,12 +178,14 @@ async function loadResults() {
             const sectionTitle = {
                 aerial: 'Aerial Photographs',
                 topo: 'Topographic Maps',
+                fim: 'Fire Insurance Maps',
                 city_directory: 'Street Directories',
             }[doc.doc_type] || doc.doc_type;
 
             const tableTitle = {
                 aerial: 'AERIAL PHOTOGRAPH SUMMARY',
                 topo: 'TOPOGRAPHIC MAP SUMMARY',
+                fim: 'FIRE INSURANCE MAP SUMMARY',
                 city_directory: 'STREET DIRECTORY SUMMARY',
             }[doc.doc_type] || 'SUMMARY';
 
@@ -194,7 +200,10 @@ async function loadResults() {
 
             doc.tables.forEach(table => {
                 html += `<div class="zone-section">`;
-                html += `<h3 class="zone-title">${table.zone_label}</h3>`;
+                html += `<div class="zone-header">`;
+                html += `  <h3 class="zone-title">${table.zone_label}</h3>`;
+                html += `  <button class="table-copy-btn" onclick="copyTable(this)" title="Copy this table">📋 Copy</button>`;
+                html += `</div>`;
                 html += `<p class="table-caption">${tableTitle} - ${table.zone_label}</p>`;
                 html += `<table class="result-table">`;
                 html += `<thead><tr><th class="col-year">Year</th><th class="col-issues">Issues Noted</th><th class="col-obs">${obsCol}</th></tr></thead>`;
@@ -234,6 +243,70 @@ function showError(msg) {
             <button class="action-btn" onclick="resetApp()">Try Again</button>
         </div>
     `;
+}
+
+// --- Per-table copy ---
+async function copyTable(btn) {
+    const section = btn.closest('.zone-section');
+    if (!section) return;
+    const caption = section.querySelector('.table-caption')?.textContent?.trim() || '';
+    const table = section.querySelector('.result-table');
+    if (!table) return;
+
+    // Rich HTML version — inline the border styles so it survives Word paste
+    const styled = table.cloneNode(true);
+    styled.setAttribute('border', '1');
+    styled.setAttribute('cellpadding', '6');
+    styled.setAttribute('cellspacing', '0');
+    styled.style.borderCollapse = 'collapse';
+    styled.style.width = '100%';
+    styled.querySelectorAll('th, td').forEach(cell => {
+        cell.style.border = '1px solid #666';
+        cell.style.padding = '6px 8px';
+        cell.style.verticalAlign = 'top';
+    });
+    styled.querySelectorAll('th').forEach(th => {
+        th.style.background = '#e8e8e8';
+    });
+
+    const html = `<p style="text-align:center;font-weight:bold;margin:0 0 4px;">${caption}</p>${styled.outerHTML}`;
+
+    // Plain-text fallback (tab-separated — Word turns this into a table on paste)
+    const lines = [caption];
+    table.querySelectorAll('tr').forEach(tr => {
+        const cells = Array.from(tr.querySelectorAll('th, td')).map(c => c.textContent.trim().replace(/\s+/g, ' '));
+        lines.push(cells.join('\t'));
+    });
+    const text = lines.join('\n');
+
+    try {
+        if (navigator.clipboard && window.ClipboardItem) {
+            await navigator.clipboard.write([new ClipboardItem({
+                'text/html': new Blob([html], { type: 'text/html' }),
+                'text/plain': new Blob([text], { type: 'text/plain' }),
+            })]);
+        } else {
+            await navigator.clipboard.writeText(text);
+        }
+        flashButton(btn, '✓ Copied');
+    } catch (err) {
+        try {
+            await navigator.clipboard.writeText(text);
+            flashButton(btn, '✓ Copied (text)');
+        } catch (err2) {
+            flashButton(btn, '⚠ Failed');
+        }
+    }
+}
+
+function flashButton(btn, msg) {
+    const original = btn.textContent;
+    btn.textContent = msg;
+    btn.disabled = true;
+    setTimeout(() => {
+        btn.textContent = original;
+        btn.disabled = false;
+    }, 1400);
 }
 
 // --- Export ---
